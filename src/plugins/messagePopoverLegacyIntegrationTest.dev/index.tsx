@@ -5,23 +5,10 @@
  */
 
 import { showNotification } from "@api/Notifications";
+import { NoEntrySignIcon } from "@components/Icons";
 import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { ChannelStore } from "@webpack/common";
-
-function TestIcon({ height = 24, width = 24, className = "icon" }: { height?: number | string; width?: number | string; className?: string; }) {
-    return (
-        <svg
-            className={className}
-            height={height}
-            width={width}
-            viewBox="0 0 24 24"
-            fill="currentColor"
-        >
-            <path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2Zm0 14a1 1 0 0 1-1-1V8a1 1 0 0 1 2 0v7a1 1 0 0 1-1 1Zm0 4a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 12 20Z" />
-        </svg>
-    );
-}
 
 export default definePlugin({
     name: "MessagePopoverLegacyIntegrationTest",
@@ -29,14 +16,14 @@ export default definePlugin({
     authors: [Devs.Ven],
 
     messagePopoverButton: {
-        icon: TestIcon,
+        icon: NoEntrySignIcon,
         render(message) {
             const channel = ChannelStore.getChannel(message.channel_id);
             if (!channel) return null;
 
             return {
                 label: "Legacy Popover API Test",
-                icon: TestIcon,
+                icon: NoEntrySignIcon,
                 message,
                 channel,
                 onClick: () => showNotification({
