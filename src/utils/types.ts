@@ -186,6 +186,10 @@ export interface PluginDef {
 
     userProfileBadge?: ProfileBadge;
 
+    /**
+     * Message popover integration.
+     * Prefer `component` for hook-safe rendering. The `render` callback remains for legacy compatibility.
+     */
     messagePopoverButton?: MessagePopoverButtonData;
     chatBarButton?: ChatBarButtonData;
 

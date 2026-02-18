@@ -24,7 +24,7 @@ import { addMemberListDecorator, removeMemberListDecorator } from "@api/MemberLi
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
 import { addMessageDecoration, removeMessageDecoration } from "@api/MessageDecorations";
 import { addMessageClickListener, addMessagePreEditListener, addMessagePreSendListener, removeMessageClickListener, removeMessagePreEditListener, removeMessagePreSendListener } from "@api/MessageEvents";
-import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
+import { addMessagePopoverButton, addMessagePopoverButtonComponent, removeMessagePopoverButton } from "@api/MessagePopover";
 import { Settings, SettingsStore } from "@api/Settings";
 import { disableStyle, enableStyle } from "@api/Styles";
 import { Logger } from "@utils/Logger";
@@ -239,7 +239,8 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
     if (renderMemberListDecorator) addMemberListDecorator(name, renderMemberListDecorator);
     if (renderMessageDecoration) addMessageDecoration(name, renderMessageDecoration);
     if (renderMessageAccessory) addMessageAccessory(name, renderMessageAccessory);
-    if (messagePopoverButton) addMessagePopoverButton(name, messagePopoverButton.render, messagePopoverButton.icon);
+    if (messagePopoverButton?.component) addMessagePopoverButtonComponent(name, messagePopoverButton.component, messagePopoverButton.icon);
+    else if (messagePopoverButton?.render) addMessagePopoverButton(name, messagePopoverButton.render, messagePopoverButton.icon);
     // @ts-expect-error: legacy code doesn't have icon
     else if (renderMessagePopoverButton) addMessagePopoverButton(name, renderMessagePopoverButton);
 
