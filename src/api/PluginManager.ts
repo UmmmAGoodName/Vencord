@@ -17,14 +17,14 @@
 */
 
 import { addProfileBadge, removeProfileBadge } from "@api/Badges";
-import { addChatBarButton, removeChatBarButton } from "@api/ChatButtons";
+import { addChatBarButton } from "@api/ChatButtons";
 import { registerCommand, unregisterCommand } from "@api/Commands";
-import { addContextMenuPatch, removeContextMenuPatch } from "@api/ContextMenu";
-import { addMemberListDecorator, removeMemberListDecorator } from "@api/MemberListDecorators";
+import { addContextMenuPatch } from "@api/ContextMenu";
+import { addMemberListDecorator } from "@api/MemberListDecorators";
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
 import { addMessageDecoration, removeMessageDecoration } from "@api/MessageDecorations";
-import { addMessageClickListener, addMessagePreEditListener, addMessagePreSendListener, removeMessageClickListener, removeMessagePreEditListener, removeMessagePreSendListener } from "@api/MessageEvents";
-import { addMessagePopoverButton, addMessagePopoverButtonComponent, removeMessagePopoverButton } from "@api/MessagePopover";
+import { addMessageClickListener, addMessagePreEditListener, addMessagePreSendListener } from "@api/MessageEvents";
+import { addMessagePopoverButton, addMessagePopoverButtonComponent } from "@api/MessagePopover";
 import { Settings, SettingsStore } from "@api/Settings";
 import { disableStyle, enableStyle } from "@api/Styles";
 import { Logger } from "@utils/Logger";
@@ -43,6 +43,33 @@ import { traceFunction } from "../debug/Tracer";
 const logger = new Logger("PluginManager", "#a6d189");
 
 export const PMLogger = logger;
+
+
+const pluginApiDisposers = new WeakMap<Plugin, Array<() => unknown>>();
+
+function addPluginDisposer(p: Plugin, dispose: () => unknown) {
+    const disposers = pluginApiDisposers.get(p);
+    if (disposers) {
+        disposers.push(dispose);
+    } else {
+        pluginApiDisposers.set(p, [dispose]);
+    }
+}
+
+function runPluginDisposers(p: Plugin) {
+    const disposers = pluginApiDisposers.get(p);
+    if (!disposers) return;
+
+    for (const dispose of disposers.reverse()) {
+        try {
+            dispose();
+        } catch (e) {
+            logger.error(`Failed to run cleanup for ${p.name}\n`, e);
+        }
+    }
+
+    pluginApiDisposers.delete(p);
+}
 
 /** Whether we have subscribed to flux events of all the enabled plugins when FluxDispatcher was ready */
 let enabledPluginsSubscribedFlux = false;
@@ -221,7 +248,7 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
     if (contextMenus) {
         logger.debug("Adding context menus patches of plugin", name);
         for (const navId in contextMenus) {
-            addContextMenuPatch(navId, contextMenus[navId]);
+            addPluginDisposer(p, addContextMenuPatch(navId, contextMenus[navId]));
         }
     }
 
@@ -229,29 +256,28 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
 
     if (userProfileBadge) addProfileBadge(userProfileBadge);
 
-    if (onBeforeMessageEdit) addMessagePreEditListener(onBeforeMessageEdit);
-    if (onBeforeMessageSend) addMessagePreSendListener(onBeforeMessageSend);
-    if (onMessageClick) addMessageClickListener(onMessageClick);
+    if (onBeforeMessageEdit) addPluginDisposer(p, addMessagePreEditListener(onBeforeMessageEdit));
+    if (onBeforeMessageSend) addPluginDisposer(p, addMessagePreSendListener(onBeforeMessageSend));
+    if (onMessageClick) addPluginDisposer(p, addMessageClickListener(onMessageClick));
 
-    if (chatBarButton) addChatBarButton(name, chatBarButton.render, chatBarButton.icon);
+    if (chatBarButton) addPluginDisposer(p, addChatBarButton(name, chatBarButton.render, chatBarButton.icon));
     // @ts-expect-error: legacy code doesn't have icon
-    else if (renderChatBarButton) addChatBarButton(name, renderChatBarButton);
-    if (renderMemberListDecorator) addMemberListDecorator(name, renderMemberListDecorator);
+    else if (renderChatBarButton) addPluginDisposer(p, addChatBarButton(name, renderChatBarButton));
+    if (renderMemberListDecorator) addPluginDisposer(p, addMemberListDecorator(name, renderMemberListDecorator));
     if (renderMessageDecoration) addMessageDecoration(name, renderMessageDecoration);
     if (renderMessageAccessory) addMessageAccessory(name, renderMessageAccessory);
-    if (messagePopoverButton?.component) addMessagePopoverButtonComponent(name, messagePopoverButton.component, messagePopoverButton.icon);
-    else if (messagePopoverButton?.render) addMessagePopoverButton(name, messagePopoverButton.render, messagePopoverButton.icon);
+    if (messagePopoverButton?.component) addPluginDisposer(p, addMessagePopoverButtonComponent(name, messagePopoverButton.component, messagePopoverButton.icon));
+    else if (messagePopoverButton?.render) addPluginDisposer(p, addMessagePopoverButton(name, messagePopoverButton.render, messagePopoverButton.icon));
     // @ts-expect-error: legacy code doesn't have icon
-    else if (renderMessagePopoverButton) addMessagePopoverButton(name, renderMessagePopoverButton);
+    else if (renderMessagePopoverButton) addPluginDisposer(p, addMessagePopoverButton(name, renderMessagePopoverButton));
 
     return true;
 }, p => `startPlugin ${p.name}`);
 
 export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plugin) {
     const {
-        name, commands, contextMenus, managedStyle, userProfileBadge,
-        onBeforeMessageEdit, onBeforeMessageSend, onMessageClick,
-        renderChatBarButton, chatBarButton, renderMemberListDecorator, renderMessageAccessory, renderMessageDecoration, renderMessagePopoverButton, messagePopoverButton
+        name, commands, managedStyle, userProfileBadge,
+        renderMessageAccessory, renderMessageDecoration
     } = p;
 
     if (p.stop) {
@@ -284,26 +310,14 @@ export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plu
 
     unsubscribePluginFluxEvents(p, FluxDispatcher);
 
-    if (contextMenus) {
-        logger.debug("Removing context menus patches of plugin", name);
-        for (const navId in contextMenus) {
-            removeContextMenuPatch(navId, contextMenus[navId]);
-        }
-    }
-
     if (managedStyle) disableStyle(managedStyle);
 
     if (userProfileBadge) removeProfileBadge(userProfileBadge);
 
-    if (onBeforeMessageEdit) removeMessagePreEditListener(onBeforeMessageEdit);
-    if (onBeforeMessageSend) removeMessagePreSendListener(onBeforeMessageSend);
-    if (onMessageClick) removeMessageClickListener(onMessageClick);
+    runPluginDisposers(p);
 
-    if (chatBarButton || renderChatBarButton) removeChatBarButton(name);
-    if (renderMemberListDecorator) removeMemberListDecorator(name);
     if (renderMessageDecoration) removeMessageDecoration(name);
     if (renderMessageAccessory) removeMessageAccessory(name);
-    if (messagePopoverButton || renderMessagePopoverButton) removeMessagePopoverButton(name);
 
     return true;
 }, p => `stopPlugin ${p.name}`);

@@ -36,6 +36,8 @@ export const decoratorsFactories = new Map<string, { render: MemberListDecorator
 
 export function addMemberListDecorator(identifier: string, render: MemberListDecoratorFactory, onlyIn?: OnlyIn) {
     decoratorsFactories.set(identifier, { render, onlyIn });
+
+    return () => removeMemberListDecorator(identifier);
 }
 
 export function removeMemberListDecorator(identifier: string) {

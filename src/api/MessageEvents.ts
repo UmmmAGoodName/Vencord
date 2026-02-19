@@ -50,6 +50,7 @@ export interface MessageOptions {
 
 export type MessageSendListener = (channelId: string, messageObj: MessageObject, options: MessageOptions) => Promisable<void | { cancel: boolean; }>;
 export type MessageEditListener = (channelId: string, messageId: string, messageObj: MessageObject) => Promisable<void | { cancel: boolean; }>;
+export type ListenerDisposer<T extends (...args: any[]) => any> = (() => boolean) & { listener: T; };
 
 const sendListeners = new Set<MessageSendListener>();
 const editListeners = new Set<MessageEditListener>();
@@ -88,19 +89,27 @@ export async function _handlePreEdit(channelId: string, messageId: string, messa
  */
 export function addMessagePreSendListener(listener: MessageSendListener) {
     sendListeners.add(listener);
-    return listener;
+
+    const dispose = (() => removeMessagePreSendListener(listener)) as ListenerDisposer<MessageSendListener>;
+    dispose.listener = listener;
+    return dispose;
 }
 /**
  * Note: This event fires off before a message's edit is applied, allowing you to further edit the message.
  */
 export function addMessagePreEditListener(listener: MessageEditListener) {
     editListeners.add(listener);
-    return listener;
+
+    const dispose = (() => removeMessagePreEditListener(listener)) as ListenerDisposer<MessageEditListener>;
+    dispose.listener = listener;
+    return dispose;
 }
-export function removeMessagePreSendListener(listener: MessageSendListener) {
+export function removeMessagePreSendListener(listenerOrDisposer: MessageSendListener | ListenerDisposer<MessageSendListener>) {
+    const listener = "listener" in listenerOrDisposer ? listenerOrDisposer.listener : listenerOrDisposer;
     return sendListeners.delete(listener);
 }
-export function removeMessagePreEditListener(listener: MessageEditListener) {
+export function removeMessagePreEditListener(listenerOrDisposer: MessageEditListener | ListenerDisposer<MessageEditListener>) {
+    const listener = "listener" in listenerOrDisposer ? listenerOrDisposer.listener : listenerOrDisposer;
     return editListeners.delete(listener);
 }
 
@@ -124,9 +133,13 @@ export function _handleClick(message: Message, channel: Channel, event: MouseEve
 
 export function addMessageClickListener(listener: MessageClickListener) {
     listeners.add(listener);
-    return listener;
+
+    const dispose = (() => removeMessageClickListener(listener)) as ListenerDisposer<MessageClickListener>;
+    dispose.listener = listener;
+    return dispose;
 }
 
-export function removeMessageClickListener(listener: MessageClickListener) {
+export function removeMessageClickListener(listenerOrDisposer: MessageClickListener | ListenerDisposer<MessageClickListener>) {
+    const listener = "listener" in listenerOrDisposer ? listenerOrDisposer.listener : listenerOrDisposer;
     return listeners.delete(listener);
 }

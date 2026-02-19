@@ -75,6 +75,8 @@ export function addMessagePopoverButton(
     icon: IconComponent
 ) {
     MessagePopoverButtonMap.set(identifier, { render, icon });
+
+    return () => removeMessagePopoverButton(identifier);
 }
 
 /**
@@ -86,6 +88,8 @@ export function addMessagePopoverButtonComponent(
     icon: IconComponent
 ) {
     MessagePopoverButtonMap.set(identifier, { component, icon });
+
+    return () => removeMessagePopoverButton(identifier);
 }
 
 export function removeMessagePopoverButton(identifier: string) {

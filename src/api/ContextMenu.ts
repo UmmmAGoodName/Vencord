@@ -53,6 +53,8 @@ export function addContextMenuPatch(navId: string | Array<string>, patch: NavCon
 
         contextMenuPatches.add(patch);
     }
+
+    return () => removeContextMenuPatch(navId, patch);
 }
 
 /**
@@ -61,6 +63,8 @@ export function addContextMenuPatch(navId: string | Array<string>, patch: NavCon
  */
 export function addGlobalContextMenuPatch(patch: GlobalContextMenuPatchCallback) {
     globalPatches.add(patch);
+
+    return () => removeGlobalContextMenuPatch(patch);
 }
 
 /**

@@ -122,7 +122,11 @@ export function _injectButtons(buttons: ReactNode[], props: ChatBarProps) {
  * The icon argument is used only for Settings UI. Your render function must still render an icon,
  * and it can be different from this one.
  */
-export const addChatBarButton = (id: string, render: ChatBarButtonFactory, icon: IconComponent) => ChatBarButtonMap.set(id, { render, icon });
+export const addChatBarButton = (id: string, render: ChatBarButtonFactory, icon: IconComponent) => {
+    ChatBarButtonMap.set(id, { render, icon });
+
+    return () => removeChatBarButton(id);
+};
 export const removeChatBarButton = (id: string) => ChatBarButtonMap.delete(id);
 
 export interface ChatBarButtonProps {
