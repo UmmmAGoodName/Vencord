@@ -19,6 +19,8 @@ const FriendRow = findComponentByCodeLazy("discriminatorClass:", ".isMobileOnlin
 
 const cl = classNameFactory("vc-gp-");
 
+const MAX_MEMBER_REQUESTS = 10;
+
 export function openGuildInfoModal(guild: Guild) {
     openModal(props => <GuildInfoModal guild={guild} modalProps={props} />);
 }
@@ -262,13 +264,13 @@ function MutualServerRow({ guild, user, guilds }: GuildProps & { user: User; gui
             role="button"
             tabIndex={0}
             onClick={() => openUserProfile(user.id)}
-            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") openUserProfile(user.id); }}
+            onKeyDown={e => { if (e.key === "Enter") openUserProfile(user.id); }}
         >
             <img className={cl("mutual-avatar")} src={IconUtils.getUserAvatarURL(user, true, 64)} alt="" />
             <div className={cl("mutual-names")}>
                 <span className={cl("mutual-name")}>{nick || displayName}</span>
-                {(nick || displayName !== user.username) && (
-                    <span className={cl("mutual-username")}>{nick && displayName !== user.username ? `${displayName} · ` : ""}{user.username}</span>
+                {(nick || displayName) !== user.username && (
+                    <span className={cl("mutual-username")}>{user.username}</span>
                 )}
             </div>
             <div className={cl("mutual-guilds")}>
@@ -279,11 +281,10 @@ function MutualServerRow({ guild, user, guilds }: GuildProps & { user: User; gui
 }
 
 function MutualServersTab({ guild, setCount }: RelationshipProps) {
-    // Rerender when Discord loads more members of this (or any other) server
+    // Used for side effects (rerender on member request success)
     const memberVersion = useStateFromStores([GuildMemberStore], () => GuildMemberStore.getMemberVersion());
 
-    // Like the other tabs, ask Discord to load the members we care about: everyone
-    // we know from any other server, so their membership here can be checked
+    // Request members known from other guilds so their membership here can be checked
     useEffect(() => {
         if (fetched.mutual) return;
         fetched.mutual = true;
@@ -298,7 +299,8 @@ function MutualServersTab({ guild, setCount }: RelationshipProps) {
             }
         }
 
-        const ids = [...candidates];
+        // Gateway requests take at most 100 ids each; cap the total to avoid flooding it
+        const ids = [...candidates].slice(0, 100 * MAX_MEMBER_REQUESTS);
         for (let i = 0; i < ids.length; i += 100) {
             FluxDispatcher.dispatch({
                 type: "GUILD_MEMBERS_REQUEST",
