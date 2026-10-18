@@ -42,7 +42,8 @@ interface RelationshipProps extends GuildProps {
 const fetched = {
     friends: false,
     blocked: false,
-    ignored: false
+    ignored: false,
+    mutual: false
 };
 
 function renderTimestamp(timestamp: number) {
@@ -61,6 +62,7 @@ function GuildInfoModal({ guild, modalProps }: GuildProps & { modalProps: Render
         fetched.friends = false;
         fetched.blocked = false;
         fetched.ignored = false;
+        fetched.mutual = false;
     }, []);
 
     const [currentTab, setCurrentTab] = useState(Tabs.ServerInfo);
@@ -250,13 +252,65 @@ function GuildIcon({ guild }: GuildProps) {
     );
 }
 
+function MutualServerRow({ guild, user, guilds }: GuildProps & { user: User; guilds: Guild[]; }) {
+    const nick = GuildMemberStore.getNick(guild.id, user.id);
+    const displayName = user.globalName || user.username;
+
+    return (
+        <div
+            className={cl("mutual-row")}
+            role="button"
+            tabIndex={0}
+            onClick={() => openUserProfile(user.id)}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") openUserProfile(user.id); }}
+        >
+            <img className={cl("mutual-avatar")} src={IconUtils.getUserAvatarURL(user, true, 64)} alt="" />
+            <div className={cl("mutual-names")}>
+                <span className={cl("mutual-name")}>{nick || displayName}</span>
+                {(nick || displayName !== user.username) && (
+                    <span className={cl("mutual-username")}>{nick && displayName !== user.username ? `${displayName} · ` : ""}{user.username}</span>
+                )}
+            </div>
+            <div className={cl("mutual-guilds")}>
+                {guilds.map(g => <GuildIcon key={g.id} guild={g} />)}
+            </div>
+        </div>
+    );
+}
+
 function MutualServersTab({ guild, setCount }: RelationshipProps) {
     // Rerender when Discord loads more members of this (or any other) server
     const memberVersion = useStateFromStores([GuildMemberStore], () => GuildMemberStore.getMemberVersion());
 
+    // Like the other tabs, ask Discord to load the members we care about: everyone
+    // we know from any other server, so their membership here can be checked
+    useEffect(() => {
+        if (fetched.mutual) return;
+        fetched.mutual = true;
+
+        const selfId = UserStore.getCurrentUser()?.id;
+        const candidates = new Set<string>();
+        for (const [guildId, members] of Object.entries(GuildMemberStore.getMutableAllGuildsAndMembers())) {
+            if (guildId === guild.id) continue;
+            for (const userId of Object.keys(members)) {
+                if (userId !== selfId && !GuildMemberStore.isMember(guild.id, userId))
+                    candidates.add(userId);
+            }
+        }
+
+        const ids = [...candidates];
+        for (let i = 0; i < ids.length; i += 100) {
+            FluxDispatcher.dispatch({
+                type: "GUILD_MEMBERS_REQUEST",
+                guildIds: [guild.id],
+                userIds: ids.slice(i, i + 100)
+            });
+        }
+    }, []);
+
     const entries = useMemo(() => {
         const selfId = UserStore.getCurrentUser()?.id;
-        const result: { userId: string; guilds: Guild[]; }[] = [];
+        const result: { user: User; guilds: Guild[]; }[] = [];
 
         for (const userId of GuildMemberStore.getMemberIds(guild.id)) {
             if (userId === selfId) continue;
@@ -271,7 +325,7 @@ function MutualServersTab({ guild, setCount }: RelationshipProps) {
                 .sort((a, b) => a.name.localeCompare(b.name));
 
             if (guilds.length)
-                result.push({ userId, guilds });
+                result.push({ user, guilds });
         }
 
         return result.sort((a, b) => b.guilds.length - a.guilds.length);
@@ -280,26 +334,11 @@ function MutualServersTab({ guild, setCount }: RelationshipProps) {
     useEffect(() => setCount(entries.length), [entries.length]);
 
     return (
-        <>
-            <ScrollerThin fade className={cl("scroller")}>
-                {entries.map(({ userId, guilds }) =>
-                    <div className={cl("mutual-row")} key={userId}>
-                        <FriendRow
-                            user={UserStore.getUser(userId)}
-                            status={PresenceStore.getStatus(userId) || "offline"}
-                            onSelect={() => openUserProfile(userId)}
-                            onContextMenu={() => { }}
-                        />
-                        <div className={cl("mutual-guilds")}>
-                            {guilds.map(g => <GuildIcon key={g.id} guild={g} />)}
-                        </div>
-                    </div>
-                )}
-            </ScrollerThin>
-            <Forms.FormText className={cl("mutual-note")}>
-                Only members Discord has currently loaded are included. Open the member list or scroll through chat to load more.
-            </Forms.FormText>
-        </>
+        <ScrollerThin fade className={cl("scroller")}>
+            {entries.map(({ user, guilds }) =>
+                <MutualServerRow key={user.id} guild={guild} user={user} guilds={guilds} />
+            )}
+        </ScrollerThin>
     );
 }
 
