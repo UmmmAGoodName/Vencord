@@ -91,3 +91,44 @@
 .vc-gp-scroller [class*="row"] {
     margin: 1px 0;
 }
+
+.vc-gp-mutual-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.vc-gp-mutual-row > :first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-gp-mutual-guilds {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    max-width: 40%;
+    padding-right: 8px;
+}
+
+.vc-gp-mutual-guild-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+}
+
+.vc-gp-mutual-guild-acronym {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-secondary);
+    color: var(--text-default);
+    font-size: 9px;
+    font-weight: 600;
+    overflow: hidden;
+}
+
+.vc-gp-mutual-note {
+    margin-top: 0.5em;
+}

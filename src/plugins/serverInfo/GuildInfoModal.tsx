@@ -12,7 +12,7 @@ import { classes } from "@utils/misc";
 import { useAwaiter } from "@utils/react";
 import { Guild, RenderModalProps, User } from "@vencord/discord-types";
 import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
-import { FluxDispatcher, Forms, GuildChannelStore, GuildMemberStore, GuildRoleStore, IconUtils, Modal,openModal, Parser, PresenceStore, RelationshipStore, ScrollerThin, SnowflakeUtils, TabBar, Timestamp, useEffect, UserStore, UserUtils, useState, useStateFromStores } from "@webpack/common";
+import { FluxDispatcher, Forms, GuildChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, IconUtils, Modal, openModal, Parser, PresenceStore, RelationshipStore, ScrollerThin, SnowflakeUtils, TabBar, Timestamp, useEffect, useMemo, UserStore, UserUtils, useState, useStateFromStores } from "@webpack/common";
 
 const IconClasses = findCssClassesLazy("icon", "acronym", "childWrapper");
 const FriendRow = findComponentByCodeLazy("discriminatorClass:", ".isMobileOnline", "avatarSrc:");
@@ -26,6 +26,7 @@ export function openGuildInfoModal(guild: Guild) {
 const enum Tabs {
     ServerInfo,
     Friends,
+    MutualServers,
     BlockedUsers,
     IgnoredUsers
 }
@@ -52,6 +53,7 @@ function renderTimestamp(timestamp: number) {
 
 function GuildInfoModal({ guild, modalProps }: GuildProps & { modalProps: RenderModalProps; }) {
     const [friendCount, setFriendCount] = useState<number>();
+    const [mutualCount, setMutualCount] = useState<number>();
     const [blockedCount, setBlockedCount] = useState<number>();
     const [ignoredCount, setIgnoredCount] = useState<number>();
 
@@ -131,6 +133,12 @@ function GuildInfoModal({ guild, modalProps }: GuildProps & { modalProps: Render
                     Friends{friendCount !== undefined ? ` (${friendCount})` : ""}
                 </TabBar.Item>
                 <TabBar.Item
+                    className={cl("tab", { selected: currentTab === Tabs.MutualServers })}
+                    id={Tabs.MutualServers}
+                >
+                    Mutual Servers{mutualCount !== undefined ? ` (${mutualCount})` : ""}
+                </TabBar.Item>
+                <TabBar.Item
                     className={cl("tab", { selected: currentTab === Tabs.BlockedUsers })}
                     id={Tabs.BlockedUsers}
                 >
@@ -147,6 +155,7 @@ function GuildInfoModal({ guild, modalProps }: GuildProps & { modalProps: Render
             <div className={cl("tab-content")}>
                 {currentTab === Tabs.ServerInfo && <ServerInfoTab guild={guild} />}
                 {currentTab === Tabs.Friends && <FriendsTab guild={guild} setCount={setFriendCount} />}
+                {currentTab === Tabs.MutualServers && <MutualServersTab guild={guild} setCount={setMutualCount} />}
                 {currentTab === Tabs.BlockedUsers && <BlockedUsersTab guild={guild} setCount={setBlockedCount} />}
                 {currentTab === Tabs.IgnoredUsers && <IgnoredUserTab guild={guild} setCount={setIgnoredCount} />}
             </div>
@@ -221,6 +230,77 @@ function FriendsTab({ guild, setCount }: RelationshipProps) {
 function BlockedUsersTab({ guild, setCount }: RelationshipProps) {
     const blockedIds = RelationshipStore.getBlockedIDs();
     return UserList("blocked", guild, blockedIds, setCount);
+}
+
+function GuildIcon({ guild }: GuildProps) {
+    const iconUrl = guild.icon && IconUtils.getGuildIconURL({
+        id: guild.id,
+        icon: guild.icon,
+        canAnimate: false,
+        size: 32
+    });
+
+    return (
+        <div className={cl("mutual-guild")} title={guild.name}>
+            {iconUrl
+                ? <img className={cl("mutual-guild-icon")} src={iconUrl} alt="" />
+                : <div className={classes(cl("mutual-guild-icon"), cl("mutual-guild-acronym"))}>{getGuildAcronym(guild)}</div>
+            }
+        </div>
+    );
+}
+
+function MutualServersTab({ guild, setCount }: RelationshipProps) {
+    // Rerender when Discord loads more members of this (or any other) server
+    const memberVersion = useStateFromStores([GuildMemberStore], () => GuildMemberStore.getMemberVersion());
+
+    const entries = useMemo(() => {
+        const selfId = UserStore.getCurrentUser()?.id;
+        const result: { userId: string; guilds: Guild[]; }[] = [];
+
+        for (const userId of GuildMemberStore.getMemberIds(guild.id)) {
+            if (userId === selfId) continue;
+
+            const user = UserStore.getUser(userId);
+            if (!user || user.bot) continue;
+
+            const guilds = GuildMemberStore.memberOf(userId)
+                .filter(id => id !== guild.id)
+                .map(id => GuildStore.getGuild(id))
+                .filter(Boolean)
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            if (guilds.length)
+                result.push({ userId, guilds });
+        }
+
+        return result.sort((a, b) => b.guilds.length - a.guilds.length);
+    }, [guild.id, memberVersion]);
+
+    useEffect(() => setCount(entries.length), [entries.length]);
+
+    return (
+        <>
+            <ScrollerThin fade className={cl("scroller")}>
+                {entries.map(({ userId, guilds }) =>
+                    <div className={cl("mutual-row")} key={userId}>
+                        <FriendRow
+                            user={UserStore.getUser(userId)}
+                            status={PresenceStore.getStatus(userId) || "offline"}
+                            onSelect={() => openUserProfile(userId)}
+                            onContextMenu={() => { }}
+                        />
+                        <div className={cl("mutual-guilds")}>
+                            {guilds.map(g => <GuildIcon key={g.id} guild={g} />)}
+                        </div>
+                    </div>
+                )}
+            </ScrollerThin>
+            <Forms.FormText className={cl("mutual-note")}>
+                Only members Discord has currently loaded are included. Open the member list or scroll through chat to load more.
+            </Forms.FormText>
+        </>
+    );
 }
 
 function IgnoredUserTab({ guild, setCount }: RelationshipProps) {
