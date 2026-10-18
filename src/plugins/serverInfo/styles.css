@@ -104,11 +104,11 @@
 }
 
 .vc-gp-mutual-row:where(:hover, :focus-visible) {
-    background: var(--background-modifier-hover);
+    background: var(--background-mod-subtle, var(--background-modifier-hover));
 }
 
 .vc-gp-mutual-row:active {
-    background: var(--background-modifier-active);
+    background: var(--background-mod-normal, var(--background-modifier-active));
 }
 
 .vc-gp-mutual-avatar {
